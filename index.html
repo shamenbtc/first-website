@@ -512,7 +512,7 @@ var SAMPLE = [
   {id:'r020',platform:'Traveloka',date:'2026-04-22',rating:3,booking:'BK-10040',room:'204',roomType:'Superior Room',text:'The room air conditioner was set to cool but was actually blowing warm air. Called engineering who came quickly and said they fixed it but it started doing the same thing again after an hour. Had an uncomfortable night.',sentiment:'Neutral',category:'Room Comfort & Quality',subcategory:'HVAC',severity:4,maintFlag:true,cleanFlag:false,staffMentioned:'',action:'Replace AC thermostat and inspect refrigerant levels for Room 204. Follow up same day to confirm fix is permanent.',resolutionStatus:'In Progress',resolvedDate:'',assignedDept:'Engineering',assignedStaff:'',resolutionNotes:'Thermostat replaced. Refrigerant topped up. Monitoring.',isSample:true}
 ];
 
-var CACHE_KEY='hoi_reviews_v7', SRC_KEY='hoi_source_v7';
+var CACHE_KEY='hoi_reviews_v8', SRC_KEY='hoi_source_v8';
 var State={reviews:[],source:'sample',fileName:null,uploadedAt:null,alertFilter:'all'};
 var RevPage={current:0,perPage:10};
 
@@ -524,39 +524,74 @@ var LS={
 };
 
 // ── Date Utilities ──
-// Strict date parser: DD/MM/YYYY ONLY for slash format. Never falls back to JS Date heuristics.
+// Strict date parser. Supports:
+//   - ISO YYYY-MM-DD
+//   - DD/MM/YYYY or D/M/YYYY (NEVER MM/DD — strict for non-ambiguous DMY input)
+//   - DD-MM-YYYY (numeric)
+//   - DD-Mon-YYYY / DD Mon YYYY / DD-Month-YYYY / DD/Mon/YYYY (e.g. 23-Mar-2026, 5 January 2026)
+// Never falls back to JS Date heuristics.
 var DateU={
+  MONTH_MAP:{
+    jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,
+    may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,sep:9,sept:9,september:9,
+    oct:10,october:10,nov:11,november:11,dec:12,december:12
+  },
   parse:function(s){
-    if(!s)return null;
+    if(s===null||s===undefined)return null;
     s=String(s).trim();
     if(!s||s.toLowerCase()==='unknown')return null;
-    var m;
-    // ISO format YYYY-MM-DD (used by sample data and HTML date inputs)
+    var m,day,mon,yr,d;
+
+    // ISO format YYYY-MM-DD
     m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
     if(m){
-      var y=parseInt(m[1]),mo=parseInt(m[2]),da=parseInt(m[3]);
-      if(mo<1||mo>12||da<1||da>31)return null;
-      var d=new Date(y,mo-1,da);
+      yr=parseInt(m[1]);mon=parseInt(m[2]);day=parseInt(m[3]);
+      if(mon<1||mon>12||day<1||day>31)return null;
+      d=new Date(yr,mon-1,day);
       return isNaN(d.getTime())?null:d;
     }
-    // DD/MM/YYYY or D/M/YYYY (uploaded CSV format — STRICT)
+
+    // DD/MM/YYYY or D/M/YYYY (strict DMY — never MM/DD)
     m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     if(m){
-      var day=parseInt(m[1]),mon=parseInt(m[2]),yr=parseInt(m[3]);
-      // Strict: first segment is day (1-31), second is month (1-12). Reject anything else.
+      day=parseInt(m[1]);mon=parseInt(m[2]);yr=parseInt(m[3]);
       if(mon<1||mon>12||day<1||day>31)return null;
-      var d=new Date(yr,mon-1,day);
+      d=new Date(yr,mon-1,day);
       return isNaN(d.getTime())?null:d;
     }
-    // DD-MM-YYYY
+
+    // DD-Mon-YYYY or DD Mon YYYY or DD/Mon/YYYY  (e.g. "23-Mar-2026", "5 January 2026")
+    m=s.match(/^(\d{1,2})[\s\-\/.]+([A-Za-z]+)[\s\-\/.]+(\d{4})/);
+    if(m){
+      day=parseInt(m[1]);
+      mon=this.MONTH_MAP[m[2].toLowerCase()];
+      yr=parseInt(m[3]);
+      if(!mon||day<1||day>31)return null;
+      d=new Date(yr,mon-1,day);
+      return isNaN(d.getTime())?null:d;
+    }
+
+    // Mon-DD-YYYY or "Mar 23, 2026"  (US-style text month)
+    m=s.match(/^([A-Za-z]+)[\s\-\/.,]+(\d{1,2})[\s\-\/.,]+(\d{4})/);
+    if(m){
+      mon=this.MONTH_MAP[m[1].toLowerCase()];
+      day=parseInt(m[2]);
+      yr=parseInt(m[3]);
+      if(!mon||day<1||day>31)return null;
+      d=new Date(yr,mon-1,day);
+      return isNaN(d.getTime())?null:d;
+    }
+
+    // DD-MM-YYYY (numeric, dash-separated)
     m=s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
     if(m){
-      var day=parseInt(m[1]),mon=parseInt(m[2]),yr=parseInt(m[3]);
+      day=parseInt(m[1]);mon=parseInt(m[2]);yr=parseInt(m[3]);
       if(mon<1||mon>12||day<1||day>31)return null;
-      var d=new Date(yr,mon-1,day);
+      d=new Date(yr,mon-1,day);
       return isNaN(d.getTime())?null:d;
     }
-    // No fallback — reject anything unrecognized rather than fabricate
+
+    // No match — reject rather than fabricate
     return null;
   },
   // Normalize ANY input to ISO YYYY-MM-DD; used at CSV import time so all
@@ -1482,7 +1517,7 @@ function parseCSV(text){
     subcategory:col(['subcategory','sub_category','secondary_category']),
     severity:col(['severity','severity_score','severity_level']),
     maintFlag:col(['maintenance','maintenance_flag','maint_flag','maint','requires_maintenance']),
-    cleanFlag:col(['cleaning','cleaning_flag','clean_flag','clean','housekeeping','requires_cleaning']),
+    cleanFlag:col(['cleaning','cleaning_flag','clean_flag','clean','housekeeping','hskp','hskp_flag','housekeeping_flag','requires_cleaning']),
     staffMentioned:col(['mentioned_staff','staff_mentioned','staff','staff_mention','staff_name','named_staff']),
     action:col(['suggested_action','action','suggested_operational_action','recommendation','recommended_action','ai_action']),
     resolutionStatus:col(['resolution_status','status','resolve_status','resolution']),
