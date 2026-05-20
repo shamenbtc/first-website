@@ -215,8 +215,9 @@ tr:hover td{background:var(--bg3)}
   <div class="bsub" id="statsLabel" style="font-size:11px;color:var(--t3)">Loading...</div>
   <div class="tr">
     <button class="tbtn" onclick="App.toggleTheme()">☀ Theme</button>
+    <button class="tbtn" onclick="App.refreshLiveData()" title="Re-sync from Google Sheets">↻ Refresh Live</button>
     <button class="tbtn" onclick="App.exportCSV()">⬇ Export</button>
-    <button class="tbtn" style="background:var(--bs);color:var(--blue);border-color:transparent" onclick="showPage('import')">⬆ Import Data</button>
+    <button class="tbtn" style="background:var(--bs);color:var(--blue);border-color:transparent" onclick="showPage('import')">⬆ Manual Upload</button>
   </div>
 </div>
 <div class="nav">
@@ -408,9 +409,20 @@ tr:hover td{background:var(--bg3)}
 
 <!-- IMPORT PAGE -->
 <div class="page" id="page-import">
+  <div class="card" style="border-left:3px solid var(--green);background:linear-gradient(to right,var(--gs),var(--bg2) 30%)">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="font-size:24px">🔄</div>
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:15px;font-weight:600;color:var(--t1);margin-bottom:3px">Live Data Mode Active</div>
+        <div style="font-size:13px;color:var(--t2)">This dashboard is connected to a live Google Sheet. Data refreshes automatically when the page loads, and you can re-sync any time with the <strong>↻ Refresh Live</strong> button in the top bar.</div>
+      </div>
+      <button class="fbtn" style="background:var(--blue);color:#fff;border-color:var(--blue)" onclick="App.refreshLiveData()">↻ Sync Now</button>
+    </div>
+  </div>
   <div class="grid-2">
     <div class="card">
-      <div class="card-hd"><span class="card-title">Import Review Data</span></div>
+      <div class="card-hd"><span class="card-title">Manual CSV Upload (Optional)</span></div>
+      <div style="font-size:12px;color:var(--t3);margin-bottom:10px">Use this only if you want to override live data with a one-off file. Manual uploads are stored locally in your browser only.</div>
       <div class="upload-zone" id="uploadZone" onclick="document.getElementById('csvInput').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="App.handleDrop(event)">
         <div style="font-size:28px;margin-bottom:8px">📂</div>
         <h3>Drop CSV file here or click to upload</h3>
@@ -1600,28 +1612,71 @@ var App={
     toast('Data cleared — showing sample dataset');
   },
   exportCSV:exportCSV,
+  // Live Google Sheets URL - published CSV from your hotel operations sheet
+  LIVE_SHEET_URL:'https://docs.google.com/spreadsheets/d/e/2PACX-1vRqCAoucSr2sR8pdyLobUytm71UaX2Goibvna-a55Kv2Yj5PAGmRqoMcRnrPaWA6Co4-Y6KAZwbcz17/pub?gid=175197959&single=true&output=csv',
+  refreshLiveData:function(silent){
+    var self=this;
+    var statusEl=document.getElementById('dataSourceLabel');
+    if(!silent&&statusEl)statusEl.textContent='Loading live data...';
+    return fetch(this.LIVE_SHEET_URL,{cache:'no-store'})
+      .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();})
+      .then(function(csv){
+        var reviews=parseCSV(csv);
+        if(!reviews.length)throw new Error('Sheet returned no rows');
+        State.reviews=reviews;State.source='live';State.fileName='Google Sheets';State.uploadedAt=new Date().toLocaleString();
+        LS.set(CACHE_KEY,{reviews:reviews,fileName:'Google Sheets',uploadedAt:State.uploadedAt});
+        if(statusEl)statusEl.textContent='Live · '+reviews.length+' reviews · '+new Date().toLocaleTimeString();
+        if(!silent)toast('✓ Synced '+reviews.length+' reviews from Google Sheets');
+        // Re-render the currently active page
+        var active=document.querySelector('.page.active');
+        if(active){var id=active.id.replace('page-','');try{showPage(id);}catch(e){renderOverview();}}
+        else renderOverview();
+        return reviews;
+      })
+      .catch(function(err){
+        if(statusEl)statusEl.textContent='Live data unavailable — using cached/sample';
+        if(!silent)toast('⚠ Could not load live sheet: '+err.message);
+        throw err;
+      });
+  },
   init:function(){
     var savedTheme=LS.get('hoi_theme',null);
     if(savedTheme)document.documentElement.setAttribute('data-theme',savedTheme);
+
+    var self=this;
     var cached=LS.get(CACHE_KEY,null);
+    var statusEl=document.getElementById('dataSourceLabel');
+
+    // ── Data load priority ──
+    // 1. Show cached data immediately so the UI is never blank
+    // 2. Then fetch fresh data from the Google Sheet in the background
+    // 3. If fetch succeeds, replace cached with fresh data
+    // 4. If fetch fails, keep showing cached/sample data
     if(cached&&cached.reviews&&cached.reviews.length){
-      // Re-normalize dates on cached data in case it was saved under an older parser
       cached.reviews.forEach(function(r){
         if(r.date){var iso=DateU.toISO(r.date);if(iso)r.date=iso;}
       });
-      State.reviews=cached.reviews;State.source='csv';State.fileName=cached.fileName||null;State.uploadedAt=cached.uploadedAt||null;
-      document.getElementById('dataSourceLabel').textContent='CSV: '+(cached.fileName||'uploaded');
+      State.reviews=cached.reviews;State.source=cached.fileName==='Google Sheets'?'live':'csv';
+      State.fileName=cached.fileName||null;State.uploadedAt=cached.uploadedAt||null;
+      if(statusEl)statusEl.textContent=State.source==='live'?'Live · '+cached.reviews.length+' reviews (cached)':'CSV: '+(cached.fileName||'uploaded');
     }else{
       State.reviews=SAMPLE.slice();State.source='sample';
+      if(statusEl)statusEl.textContent='Loading live data...';
     }
-    // Wait for Chart.js with polling — single timeout is fragile on slow networks
+
+    // Wait for Chart.js with polling
     var tries=0;
     function tryRender(){
       if(typeof Chart!=='undefined'){renderOverview();return;}
       if(++tries<30){setTimeout(tryRender,200);return;}
-      renderOverview(); // give up waiting, render the non-chart bits anyway
+      renderOverview();
     }
     tryRender();
+
+    // Now fetch fresh data from Google Sheets in background
+    setTimeout(function(){
+      self.refreshLiveData(true).catch(function(){});
+    },300);
   }
 };
 
