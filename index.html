@@ -696,7 +696,7 @@ var SAMPLE = [
   {id:'r020',platform:'Traveloka',date:'2026-04-22',rating:3,booking:'BK-10040',room:'204',roomType:'Superior Room',text:'The room air conditioner was set to cool but was actually blowing warm air. Called engineering who came quickly and said they fixed it but it started doing the same thing again after an hour. Had an uncomfortable night.',sentiment:'Neutral',category:'Room Comfort & Quality',subcategory:'HVAC',severity:4,maintFlag:true,cleanFlag:false,staffMentioned:'',action:'Replace AC thermostat and inspect refrigerant levels for Room 204. Follow up same day to confirm fix is permanent.',resolutionStatus:'In Progress',resolvedDate:'',assignedDept:'Engineering',assignedStaff:'',resolutionNotes:'Thermostat replaced. Refrigerant topped up. Monitoring.',isSample:true}
 ];
 
-var CACHE_KEY='hoi_reviews_v13', SRC_KEY='hoi_source_v13';
+var CACHE_KEY='hoi_reviews_v14', SRC_KEY='hoi_source_v14';
 var State={reviews:[],source:'sample',fileName:null,uploadedAt:null,alertFilter:'all'};
 var RevPage={current:0,perPage:10};
 
@@ -1722,8 +1722,36 @@ function parseCSV(text){
   var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
   if(lines.length<2)throw new Error('CSV must have header + at least 1 data row (got '+lines.length+' lines)');
 
-  // Normalize headers: lowercase, replace any non-alphanumeric run with single underscore
-  var rawHeaders=parseCSVRow(lines[0]).map(function(h){return h.trim();});
+  // AUTO-DETECT HEADER ROW.
+  // Some sheets have a "group band" row above the real headers (e.g. STAY INFO, BOOKING, ...).
+  // Some also have a description row right below the headers. Find the row that actually
+  // contains the column names by looking for canonical markers like "Check-in", "Platform", "Rating".
+  var headerMarkers=['check-in','checkin','check in','platform','review text','rating','room number','room type','sentiment','booking number'];
+  function looksLikeHeader(row){
+    var lc=row.map(function(c){return String(c||'').toLowerCase().trim();});
+    var hits=0;
+    for(var i=0;i<lc.length;i++){
+      for(var j=0;j<headerMarkers.length;j++){
+        if(lc[i]===headerMarkers[j]||lc[i].indexOf(headerMarkers[j])>-1){hits++;break;}
+      }
+    }
+    return hits>=3; // need at least 3 known header keywords in the row to qualify
+  }
+  // Scan first 5 rows for the header row
+  var headerRowIdx=0;
+  var maxScan=Math.min(5,lines.length);
+  for(var hi=0;hi<maxScan;hi++){
+    var parsed=parseCSVRow(lines[hi]);
+    if(looksLikeHeader(parsed)){
+      headerRowIdx=hi;
+      break;
+    }
+  }
+  // Normalize headers: lowercase, replace any non-alphanumeric run with single underscore.
+  // Also strip any trailing star marker (★) that came from the template's required-field indicator.
+  var rawHeaders=parseCSVRow(lines[headerRowIdx]).map(function(h){
+    return String(h||'').replace(/[★*†‡]/g,'').trim();
+  });
   var headers=rawHeaders.map(function(h){
     return h.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
   });
@@ -1784,13 +1812,34 @@ function parseCSV(text){
     rawHeaders:rawHeaders,
     normalizedHeaders:headers,
     columnMap:cols,
-    rowCount:lines.length-1,
-    firstDataRow:lines[1]||''
+    rowCount:lines.length-headerRowIdx-1,
+    headerRow:headerRowIdx+1,
+    firstDataRow:lines[headerRowIdx+1]||''
   };
+
+  // Detect if the row immediately after headers is a description/hint row (italic gray row
+  // in the template). It will contain phrases like "DD-Mon-YYYY", "Yes / No", or
+  // "Country of guest" — placeholder text that's not a real review.
+  var startRow=headerRowIdx+1;
+  if(startRow<lines.length){
+    var nextRow=parseCSVRow(lines[startRow]);
+    var nextLower=nextRow.map(function(c){return String(c||'').toLowerCase();}).join(' ');
+    var descMarkers=['dd-mon-yyyy','number of nights','yes / no','primary complaint','5-10 word','specific sub-issue','country of guest'];
+    var descHits=0;
+    for(var dm=0;dm<descMarkers.length;dm++){
+      if(nextLower.indexOf(descMarkers[dm])>-1)descHits++;
+    }
+    if(descHits>=2){
+      // It's a description row — skip it
+      startRow++;
+      parseCSV.lastDiagnostic.descriptionRowSkipped=true;
+    }
+  }
+  parseCSV.lastDiagnostic.firstDataRow=lines[startRow]||'';
 
   var reviews=[];
   var skipped=0;
-  for(var i=1;i<lines.length;i++){
+  for(var i=startRow;i<lines.length;i++){
     var row=parseCSVRow(lines[i]);
     if(row.every(function(c){return!c.trim();})){skipped++;continue;}
     function g(c,def){var idx=cols[c];return idx>-1&&row[idx]!==undefined?String(row[idx]).trim():(def||'');}
@@ -2276,7 +2325,9 @@ var App={
           '\nFix: File → Share → Publish to web → select your tab → CSV → Publish.');
       }
       var url=urlsToTry[idx];
-      return fetch(url,{cache:'no-store',redirect:'follow',credentials:'omit'})
+      // Capture browser environment for diagnostic
+      var envInfo='ua:'+(navigator.userAgent||'').slice(0,60)+' online:'+navigator.onLine;
+      return fetch(url,{cache:'no-store',redirect:'follow',credentials:'omit',mode:'cors'})
         .then(function(r){
           if(!r.ok){
             var err='HTTP '+r.status+' '+(r.statusText||'(no status text)');
@@ -2299,9 +2350,10 @@ var App={
         .catch(function(err){
           // Network-level error: "TypeError: Failed to fetch" → CORS or network unreachable
           var msg=err.message||String(err);
+          var errType=err.name||(err.constructor&&err.constructor.name)||'Error';
           // Don't re-catch our own thrown errors from the chain above
           if(msg.indexOf('All fetch attempts failed')===0)throw err;
-          attemptLog.push({idx:idx,url:url,error:msg});
+          attemptLog.push({idx:idx,url:url,error:'['+errType+'] '+msg+' ['+envInfo+']'});
           // Only retry on network errors, not on parse/logic errors
           if(msg.indexOf('Failed to fetch')>-1||msg.indexOf('NetworkError')>-1||msg.indexOf('HTTP')===0||msg.indexOf('Got HTML')>-1||msg.indexOf('Empty response')>-1){
             return tryFetch(idx+1);
@@ -2358,10 +2410,10 @@ var App={
   // Build alternate URL forms to try if primary fails.
   // Google Sheets occasionally serves different responses for the same content via
   // different URL formats (with/without single=true, parameter order variations).
+  // As a last resort we also try public CORS proxies in case browser blocks direct fetch.
   buildFallbackUrls:function(primaryUrl){
     var alts=[];
     try{
-      // Parse the primary URL
       var match=primaryUrl.match(/pub\?(.+)$/);
       if(!match)return alts;
       var params={};
@@ -2370,16 +2422,22 @@ var App={
         params[kv[0]]=kv[1];
       });
       var base=primaryUrl.split('?')[0];
-      // Alternative 1: gid + output only (drop single=true)
+      // Alt 1: gid + output only (drop single=true)
       if(params.gid){
         alts.push(base+'?gid='+params.gid+'&output='+(params.output||'csv'));
       }
-      // Alternative 2: rearrange parameter order
+      // Alt 2: rearrange parameter order
       if(params.gid){
         alts.push(base+'?output=csv&gid='+params.gid+'&single=true');
       }
-      // Alternative 3: just output=csv (whole document published)
+      // Alt 3: just output=csv (whole document published)
       alts.push(base+'?output=csv');
+      // Alt 4-5: CORS proxy fallbacks (used only if direct fetch fails on user's network)
+      // These proxies forward the request through their own server so CORS doesn't apply.
+      // Performance & reliability is best-effort. Only triggered when all direct URLs fail.
+      var encoded=encodeURIComponent(primaryUrl);
+      alts.push('https://api.allorigins.win/raw?url='+encoded);
+      alts.push('https://corsproxy.io/?'+encoded);
     }catch(e){}
     return alts;
   },
