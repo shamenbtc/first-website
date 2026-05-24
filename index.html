@@ -625,25 +625,52 @@ tr:hover td{background:var(--bg3)}
       <div id="uploadStatus" style="margin-top:10px"></div>
     </div>
     <div class="card">
-      <div class="card-hd"><span class="card-title">CSV Column Guide</span></div>
+      <div class="card-hd"><span class="card-title">CSV Column Guide</span><span style="font-size:11px;color:var(--t3);font-weight:500;text-transform:none;letter-spacing:0">★ = required for dashboard accuracy</span></div>
       <div class="tbl-wrap"><table>
-        <thead><tr><th>Column Name</th><th>Format</th><th>Required</th></tr></thead>
+        <thead><tr><th style="width:25%">Column Name</th><th>Format / Allowed Values</th><th style="width:90px;text-align:center">Required</th></tr></thead>
         <tbody>
-          <tr><td>Platform</td><td>Google Reviews, Agoda, Booking.com, etc.</td><td><span class="badge badge-red">Yes</span></td></tr>
-          <tr><td><strong>Check-in Date</strong></td><td>DD/MM/YYYY (when guest stayed — used for all charts)</td><td><span class="badge badge-red">Yes</span></td></tr>
-          <tr><td>Reviewed Month</td><td>Free text (e.g. "March 2026") — when review was posted</td><td><span class="badge badge-amber">Rec</span></td></tr>
-          <tr><td>Rating</td><td>Any scale: 5, 5/5, 8/10, 4.5 — auto-normalized to /5</td><td><span class="badge badge-red">Yes</span></td></tr>
-          <tr><td>Booking Number</td><td>BK-XXXXX</td><td><span class="badge badge-amber">Rec</span></td></tr>
-          <tr><td>Room Number</td><td>101, 204, etc.</td><td><span class="badge badge-amber">Rec</span></td></tr>
-          <tr><td>Room Type</td><td>Deluxe, Suite, etc.</td><td><span class="badge badge-amber">Rec</span></td></tr>
-          <tr><td>Review Text</td><td>Full review content</td><td><span class="badge badge-red">Yes</span></td></tr>
-          <tr><td>Resolution Status</td><td>Open / In Progress / Resolved / Escalated / Monitoring</td><td><span class="badge badge-gray">Opt</span></td></tr>
-          <tr><td>Resolved Date</td><td>DD/MM/YYYY</td><td><span class="badge badge-gray">Opt</span></td></tr>
-          <tr><td>Assigned Department</td><td>Engineering / Housekeeping / Front Office / F&amp;B</td><td><span class="badge badge-gray">Opt</span></td></tr>
-          <tr><td>Assigned Staff</td><td>Staff name</td><td><span class="badge badge-gray">Opt</span></td></tr>
-          <tr><td>Resolution Notes</td><td>Free text</td><td><span class="badge badge-gray">Opt</span></td></tr>
+
+          <tr><td colspan="3" style="background:var(--bg3);font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;padding:6px 10px">Stay Information</td></tr>
+          <tr><td><strong>Check-in Date</strong> ★</td><td>DD-Mon-YYYY (e.g. <code style="font-size:11px">23-Mar-2026</code>) — when guest stayed. Drives all chart trending.</td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+          <tr><td>Check-out Date</td><td>DD-Mon-YYYY — for length-of-stay tracking</td><td style="text-align:center"><span class="badge badge-gray">Optional</span></td></tr>
+          <tr><td>Night(s) Stayed</td><td>Integer (e.g. <code style="font-size:11px">2</code>)</td><td style="text-align:center"><span class="badge badge-gray">Optional</span></td></tr>
+          <tr><td><strong>Review Month</strong> ★</td><td>Free text (e.g. <code style="font-size:11px">May 2026</code>) — when review was posted online</td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+
+          <tr><td colspan="3" style="background:var(--bg3);font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;padding:6px 10px">Booking</td></tr>
+          <tr><td><strong>Platform</strong> ★</td><td>Google Reviews / Tripadvisor / Booking.com / Agoda / Expedia / Trip.com / Hotels.com / Traveloka</td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+          <tr><td><strong>Booking Number</strong> ★</td><td>Property booking reference (e.g. <code style="font-size:11px">4180726177645</code>)</td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+          <tr><td><strong>Room Number</strong> ★</td><td>Room number (e.g. <code style="font-size:11px">214</code>) — drives heatmap and room-level alerts</td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+          <tr><td><strong>Room Type</strong> ★</td><td>Standard Double / Deluxe / Suite / Sultan Room / Skylight Room — consistent naming required</td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+          <tr><td>Guest Nationality</td><td>Country of guest (e.g. <code style="font-size:11px">Malaysian</code>)</td><td style="text-align:center"><span class="badge badge-gray">Optional</span></td></tr>
+
+          <tr><td colspan="3" style="background:var(--bg3);font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;padding:6px 10px">Review Content</td></tr>
+          <tr><td><strong>Rating</strong> ★</td><td>Any scale: <code style="font-size:11px">5/5</code>, <code style="font-size:11px">8/10</code>, <code style="font-size:11px">4.5</code> — dashboard auto-normalises to /5</td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+          <tr><td><strong>Review Text</strong> ★</td><td>Full verbatim review text — copy the entire review, do not paraphrase. Most critical column for AI accuracy.</td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+          <tr><td>Mentioned Staff</td><td>Staff name(s) — comma separated (e.g. <code style="font-size:11px">Arfa, Liza</code>). Powers Staff Leaderboard.</td><td style="text-align:center"><span class="badge badge-amber">Recommended</span></td></tr>
+          <tr><td>Verified Stay</td><td>Yes / No — is it a verified booking review</td><td style="text-align:center"><span class="badge badge-gray">Optional</span></td></tr>
+
+          <tr><td colspan="3" style="background:var(--bg3);font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;padding:6px 10px">Operational Analysis</td></tr>
+          <tr><td><strong>Sentiment</strong> ★</td><td>Positive / Neutral / Negative. <em>Mark overall guest experience — the dashboard detects embedded complaints in positive reviews automatically.</em></td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+          <tr><td><strong>Category</strong> ★</td><td>Room Comfort &amp; Quality / Cleanliness / Staff / Facilities / Value for Money / F&amp;B / Other</td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+          <tr><td><strong>Subcategory</strong> ★</td><td>Specific sub-issue (e.g. <code style="font-size:11px">HVAC</code>, <code style="font-size:11px">Building Exterior</code>, <code style="font-size:11px">Front Desk</code>). Most impactful column for alert quality.</td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+          <tr><td>Complaint Summary</td><td>5-10 word plain-English summary (e.g. <code style="font-size:11px">Dirty windows and exterior metals</code>). Used on Alert cards.</td><td style="text-align:center"><span class="badge badge-amber">Recommended</span></td></tr>
+          <tr><td><strong>Severity</strong> ★</td><td>1 = minor · 2 = low · 3 = medium (action within week) · 4 = high (24-48hr) · 5 = critical (immediate)</td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+          <tr><td><strong>Maintenance Flag</strong> ★</td><td>Yes / No — physical / engineering defect mentioned (AC, plumbing, elevator, door, window). Triggers maintenance alert count.</td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+          <tr><td><strong>HSKP Flag</strong> ★</td><td>Yes / No — housekeeping / cleanliness failure mentioned. Mark Yes even on Positive reviews if a hygiene issue is mentioned.</td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+          <tr><td>Suggested Action</td><td>Recommended operational action — leave blank to let dashboard AI generate one</td><td style="text-align:center"><span class="badge badge-gray">Optional</span></td></tr>
+
+          <tr><td colspan="3" style="background:var(--bg3);font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;padding:6px 10px">Resolution Tracking</td></tr>
+          <tr><td><strong>Resolution Status</strong> ★</td><td>Open / In Progress / Monitoring / Resolved / Escalated. Dashboard always trusts this value — never leave blank if there is a complaint.</td><td style="text-align:center"><span class="badge badge-red">Required</span></td></tr>
+          <tr><td>Resolved Date</td><td>DD-Mon-YYYY — date the issue was confirmed closed</td><td style="text-align:center"><span class="badge badge-gray">Optional</span></td></tr>
+          <tr><td>Assigned Department</td><td>Engineering / Housekeeping / Front Office / F&amp;B / Management</td><td style="text-align:center"><span class="badge badge-amber">Recommended</span></td></tr>
+          <tr><td>Assigned Staff</td><td>Name of staff member handling the issue</td><td style="text-align:center"><span class="badge badge-gray">Optional</span></td></tr>
+          <tr><td>Resolution Notes</td><td>Free text — what was done, parts ordered, follow-up needed</td><td style="text-align:center"><span class="badge badge-gray">Optional</span></td></tr>
+
         </tbody>
       </table></div>
+      <div style="margin-top:10px;padding:10px 12px;background:var(--bs);border-radius:6px;font-size:12px;color:var(--t2);line-height:1.5">
+        <strong style="color:var(--blue)">26 columns total · 14 required.</strong> The dashboard auto-detects header rows even when the CSV has a coloured group band on top (STAY INFO / BOOKING / REVIEW / OPERATIONAL / RESOLUTION) and a description row beneath the headers — both are skipped automatically.
+      </div>
     </div>
   </div>
   <div class="card">
@@ -697,7 +724,7 @@ var SAMPLE = [
   {id:'r020',platform:'Traveloka',date:'2026-04-22',rating:3,booking:'BK-10040',room:'204',roomType:'Superior Room',text:'The room air conditioner was set to cool but was actually blowing warm air. Called engineering who came quickly and said they fixed it but it started doing the same thing again after an hour. Had an uncomfortable night.',sentiment:'Neutral',category:'Room Comfort & Quality',subcategory:'HVAC',severity:4,maintFlag:true,cleanFlag:false,staffMentioned:'',action:'Replace AC thermostat and inspect refrigerant levels for Room 204. Follow up same day to confirm fix is permanent.',resolutionStatus:'In Progress',resolvedDate:'',assignedDept:'Engineering',assignedStaff:'',resolutionNotes:'Thermostat replaced. Refrigerant topped up. Monitoring.',isSample:true}
 ];
 
-var CACHE_KEY='hoi_reviews_v16', SRC_KEY='hoi_source_v16';
+var CACHE_KEY='hoi_reviews_v17', SRC_KEY='hoi_source_v17';
 var State={reviews:[],source:'sample',fileName:null,uploadedAt:null,alertFilter:'all'};
 var RevPage={current:0,perPage:10};
 
